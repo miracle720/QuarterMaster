@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<!-- saved from url=(0039)file:///Users/c/Downloads/index_16.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F/ELD — Warehouse Check-in</title>
+<meta name="description" content="Warehouse worker daily check-in and payroll app">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WH Check-in">
+<link rel="manifest" href="manifest.json">
+<!-- Apple touch icon (inline SVG as data URI) -->
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" class="hidden">
+  <div class="setup-box">
+    <h2>🔧 Connect to Firebase</h2>
+    <p>This is a one-time setup. You only do this once — after this, all workers, check-ins and admins are shared across every phone and device automatically.</p>
+    <div class="setup-step"><div class="step-num">1</div><div class="step-text">Go to <strong>console.firebase.google.com</strong> and sign in with your Google account</div></div>
+    <div class="setup-step"><div class="step-num">2</div><div class="step-text">Click <strong>Add project</strong> → name it <strong>warehouse-checkin</strong> → click through and create it</div></div>
+    <div class="setup-step"><div class="step-num">3</div><div class="step-text">In the left menu click <strong>Build → Realtime Database</strong> → click <strong>Create Database</strong> → choose any region → select <strong>Start in test mode</strong> → click Enable</div></div>
+    <div class="setup-step"><div class="step-num">4</div><div class="step-text">Click the <strong>⚙️ gear icon</strong> (top left) → <strong>Project settings</strong> → scroll down to <strong>Your apps</strong> → click the <strong>&lt;/&gt; Web</strong> button → register the app → copy the <strong>firebaseConfig</strong> object shown</div></div>
+    <div class="setup-step"><div class="step-num">5</div><div class="step-text">Paste the full <strong>firebaseConfig</strong> block below and click Connect</div></div>
+    <div class="setup-input-wrap">
+      <textarea id="firebase-config-input" rows="7" style="padding:10px 12px;font-size:12px;font-family:monospace;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;resize:vertical;width:100%" placeholder="Paste your firebaseConfig here, e.g:
+{
+  apiKey: &quot;AIza...&quot;,
+  authDomain: &quot;your-app.firebaseapp.com&quot;,
+  databaseURL: &quot;https://your-app-default-rtdb.firebaseio.com&quot;,
+  projectId: &quot;your-app&quot;,
+  ...
+}"></textarea>
+      <button class="btn primary" onclick="connectFirebase()" style="justify-content:center;padding:10px"><i class="ti ti-plug"></i> Connect to Firebase</button>
+      <p id="setup-error"></p>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING SCREEN -->
+<div id="loading-screen" class="hidden">
+  <div class="spinner"></div>
+  <p id="loading-msg">Loading workers and check-ins…</p>
+</div>
+
+<!-- WORKER SIGN-IN GATE -->
+<div id="worker-gate">
+  <div class="wg-box">
+    <div id="wg-busy" style="display:flex;flex-direction:column;align-items:center;gap:12px"><div class="spinner"></div><p id="wg-busy-msg" style="margin:0">Checking sign-in…</p></div>
+    <div id="wg-signin" style="display:none">
+      <img src="icons/icon-192.png" alt="" width="84" height="84" style="border-radius:18px;display:block;margin:0 auto 6px">
+      <h2>Sign in to check in</h2>
+      <p>Use the Google account your supervisor registered for you. Your name and work history are linked to it.</p>
+      <button class="wg-google" onclick="workerGoogleSignIn()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.7 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.4-5.7c-2 1.4-4.7 2.2-7.8 2.2-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg> Continue with Google</button>
+      <div id="wg-error" class="wg-err"></div>
+      <button class="wg-link" onclick="showLogin()">Admin login</button>
+    </div>
+    <div id="wg-problem" style="display:none">
+      <div style="font-size:32px">⚠️</div>
+      <h2>Can't sign you in</h2>
+      <p id="wg-problem-msg"></p>
+      <p style="font-size:12px">Signed in as <strong id="wg-problem-email"></strong></p>
+      <button class="wg-google" onclick="workerRetry()">Try again</button>
+      <button class="wg-link" onclick="showWorkerGate()">Use a different Google account</button>
+      <button class="wg-link" onclick="showLogin()">Admin login</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="modal-overlay hidden" id="login-modal">
+  <div class="modal">
+    <h2>Admin login</h2>
+    <p>Enter your credentials to access the admin dashboard.</p>
+    <div class="modal-form">
+      <input type="text" id="login-username" placeholder="Username" autocomplete="off">
+      <input type="password" id="login-password" placeholder="Password">
+      <button class="btn primary" onclick="doLogin()" style="width:100%;justify-content:center;padding:10px">Login</button>
+      <p id="login-error" style="color:var(--red-text);font-size:13px;text-align:center;display:none">Incorrect username or password</p>
+    </div>
+  </div>
+</div>
+
+<!-- BANK DETAILS MODAL -->
+<div class="modal-overlay hidden" id="shift-modal">
+  <div class="modal">
+    <h2>Select your shift</h2>
+    <p>Which shift are you checking in for today?</p>
+    <div class="modal-form">
+      <button class="btn primary" onclick="selectShift(&#39;morning&#39;)" style="width:100%;justify-content:center;padding:12px;flex-direction:column;gap:2px"><span><i class="ti ti-sun"></i> Morning Shift</span><span style="font-size:12px;font-weight:400;opacity:0.85">8:00 AM – 4:00 PM</span></button>
+      <button class="btn primary" onclick="selectShift(&#39;night&#39;)" style="width:100%;justify-content:center;padding:12px;flex-direction:column;gap:2px"><span><i class="ti ti-moon"></i> Night Shift</span><span style="font-size:12px;font-weight:400;opacity:0.85">12:00 PM – 8:00 PM</span></button>
+      <button class="btn" onclick="hideShiftModal()" style="width:100%;justify-content:center;padding:10px">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="device-modal">
+  <div class="modal">
+    <h2>Which device will you use?</h2>
+    <p>Pick a scanner, or use your own phone for this shift.</p>
+    <div class="modal-form">
+      <button class="btn primary" onclick="selectDevice(&#39;mobile&#39;)" style="width:100%;justify-content:center;padding:12px"><i class="ti ti-device-mobile"></i> My phone</button>
+      <div id="device-scanner-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+      <button class="btn" onclick="hideDeviceModal()" style="width:100%;justify-content:center;padding:10px">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="pickup-scanner-modal">
+  <div class="modal">
+    <h2>Pick up a scanner</h2>
+    <p>Switch from your phone to one of the scanners below.</p>
+    <div class="modal-form">
+      <div id="pickup-scanner-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+      <button class="btn" onclick="hidePickupScannerModal()" style="width:100%;justify-content:center;padding:10px">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="bank-modal">
+  <div class="modal">
+    <h2>One last step</h2>
+    <p>Please add your bank details before your first check-in. This is saved once and used for all future payments.</p>
+    <div class="modal-form">
+      <input type="text" id="bank-account-number" placeholder="Account Number" inputmode="numeric" autocomplete="off">
+      <input type="text" id="bank-name" placeholder="Bank Name" autocomplete="off">
+      <input type="text" id="bank-warehouse" placeholder="Warehouse" autocomplete="off">
+      <button class="btn primary" onclick="submitBankDetails()" style="width:100%;justify-content:center;padding:10px">Save and check in</button>
+      <p id="bank-error" style="color:var(--red-text);font-size:13px;text-align:center;display:none">Please fill in all fields</p>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT WORKER MODAL -->
+<div class="modal-overlay hidden" id="edit-worker-modal">
+  <div class="modal">
+    <h2>Edit Worker</h2>
+    <p>Update this worker's name, grade, or start date.</p>
+    <div class="modal-form">
+      <input type="hidden" id="edit-worker-fbkey">
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:2px">Full Name</label>
+      <input type="text" id="edit-worker-name" placeholder="Full name" autocomplete="off">
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:2px;margin-top:6px">Grade</label>
+      <select id="edit-worker-grade" style="padding:10px 12px;font-size:14px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;width:100%">
+        <option value="auto">Auto (based on start date)</option>
+        <option value="senior">Senior — ₦9,000/day</option>
+        <option value="probation">Probation — ₦6,500/day</option>
+      </select>
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:2px;margin-top:6px">Start Date</label>
+      <input type="date" id="edit-worker-startdate" style="padding:10px 12px;font-size:16px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;width:100%">
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:2px;margin-top:6px">Home warehouse</label>
+      <select id="edit-worker-home-warehouse" onchange="updateGradeOptions(&#39;edit-worker-grade&#39;,&#39;edit-worker-home-warehouse&#39;)" style="padding:10px 12px;font-size:14px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;width:100%">
+        <option value="LAGOS_DC">🏭 LAGOS_DC</option>
+        <option value="NAIROBI_DC">🏭 NAIROBI_DC</option>
+      </select>
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:4px;margin-top:10px">Extra warehouse access <span style="font-weight:400">(Super Admin only)</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="edit-worker-access-checkboxes">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="access-LAGOS_DC" value="LAGOS_DC"> 🏭 LAGOS_DC</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="access-NAIROBI_DC" value="NAIROBI_DC"> 🏭 NAIROBI_DC</label>
+      </div>
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:2px;margin-top:10px">Google e-mail for sign-in</label>
+      <input type="email" id="edit-worker-email" placeholder="name@gmail.com" autocomplete="off" style="padding:10px 12px;font-size:16px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;width:100%">
+      <div id="edit-worker-link-status" style="display:none;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;margin-top:6px;background:var(--bg2);border-radius:var(--radius);font-size:13px"></div>
+      <label class="form-label" style="font-size:12px;color:var(--text2);margin-bottom:4px;margin-top:10px">Reports PIN <span style="font-weight:400">(protects their Report Issue view)</span></label>
+      <div id="edit-worker-pin-status" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:var(--bg2);border-radius:var(--radius);font-size:13px"></div>
+      <button class="btn primary" onclick="saveWorkerEdits()" style="width:100%;justify-content:center;padding:10px;margin-top:10px"><i class="ti ti-check"></i> Save changes</button>
+      <button class="btn" onclick="hideEditWorkerModal()" style="width:100%;justify-content:center;padding:10px">Cancel</button>
+      <p id="edit-worker-error" style="color:var(--red-text);font-size:13px;text-align:center;display:none">Please fill in all fields</p>
+    </div>
+  </div>
+</div>
+
+<!-- OUTBOUND SNAPSHOT DRILL-DOWN MODAL -->
+<div class="modal-overlay hidden" id="snapshot-modal">
+  <div class="modal" style="max-width:760px">
+    <h2 id="snapshot-modal-title">Snapshot</h2>
+    <p id="snapshot-modal-sub" style="font-size:12.5px;color:var(--text2);margin:-8px 0 12px"></p>
+    <div class="log-wrap">
+      <table>
+        <thead id="snapshot-modal-thead"></thead>
+        <tbody id="snapshot-modal-body"></tbody>
+      </table>
+    </div>
+    <div class="form-row" style="margin-top:14px;margin-bottom:0">
+      <button class="btn" style="flex:1;justify-content:center" onclick="closeSnapshotModal()"><i class="ti ti-x"></i> Close</button>
+      <button class="btn success" style="flex:1;justify-content:center" onclick="downloadSnapshotList()"><i class="ti ti-file-spreadsheet"></i> Download (Excel)</button>
+    </div>
+  </div>
+</div>
+
+<!-- OUTBOUND DISPATCH MODAL -->
+<div class="modal-overlay hidden" id="outbound-modal">
+  <div class="modal">
+    <h2>Edit packed order</h2>
+    <div id="outbound-modal-summary" style="background:var(--bg2);border-radius:var(--radius);padding:10px 12px;font-size:13px;margin-bottom:14px;color:var(--text2)"></div>
+    <div class="modal-form">
+      <p class="section-title" style="margin:0 0 2px">What was packed</p>
+      <div class="form-group"><label class="form-label">Customer name</label><input type="text" id="outbound-customer-input" placeholder="e.g. Shoprite Lekki"></div>
+      <div class="form-row" style="margin-bottom:0">
+        <div class="form-group"><label class="form-label">Orders</label><input type="number" min="0" inputmode="numeric" id="outbound-orders-input" placeholder="e.g. 25"></div>
+        <div class="form-group"><label class="form-label">SKUs</label><input type="number" min="0" inputmode="numeric" id="outbound-skus-input" placeholder="e.g. 140"></div>
+      </div>
+      <div class="form-row" style="margin-bottom:0">
+        <div class="form-group"><label class="form-label">Weight (kg)</label><input type="number" min="0" step="0.1" inputmode="decimal" id="outbound-weight-input" placeholder="e.g. 120.5"></div>
+        <div class="form-group"><label class="form-label">Cartons</label><input type="number" min="0" inputmode="numeric" id="outbound-cartons-input" placeholder="e.g. 15"></div>
+      </div>
+      <p class="section-title" style="margin:10px 0 2px">Dispatch details</p>
+      <div class="form-group"><label class="form-label">3PL / Logistics partner</label><input type="text" id="outbound-3pl-input" placeholder="e.g. GIG Logistics"></div>
+      <div class="form-group"><label class="form-label">Market region <span style="font-weight:400">(auto-filled from order — edit if needed)</span></label><input type="text" id="outbound-region-input" placeholder="e.g. Lagos Island, South-West"></div>
+      <div class="form-group"><label class="form-label">Pickup date &amp; time</label><input type="datetime-local" id="outbound-pickup-input"></div>
+      <p id="outbound-error" style="color:var(--red-text);font-size:12px;text-align:center;display:none">Enter a valid number of orders and/or SKUs, and a customer name</p>
+      <button class="btn primary" onclick="saveOutboundDispatch()" style="width:100%;justify-content:center;padding:10px;margin-top:6px"><i class="ti ti-check"></i> Save changes</button>
+      <button class="btn" onclick="closeOutboundModal()" style="width:100%;justify-content:center;padding:10px">Cancel</button>
+      <button class="btn danger" onclick="deleteOutboundEntry()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-trash"></i> Delete this entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOG PRODUCTION MODAL -->
+<div class="modal-overlay hidden" id="production-modal">
+  <div class="modal">
+    <h2 id="production-modal-title">Log work</h2>
+    <p>Choose what you're logging. Packing records the exact time the batch is ready for dispatch.</p>
+    <div id="production-type-tabs" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+      <button type="button" class="btn task-type-btn" data-type="picking" onclick="setProductionType(&#39;picking&#39;)" style="flex:1;min-width:70px;justify-content:center;padding:8px 6px;font-size:12.5px"><i class="ti ti-list-check"></i> Picking</button>
+      <button type="button" class="btn task-type-btn primary" data-type="packing" onclick="setProductionType(&#39;packing&#39;)" style="flex:1;min-width:70px;justify-content:center;padding:8px 6px;font-size:12.5px"><i class="ti ti-package"></i> Packing</button>
+      <button type="button" class="btn task-type-btn" data-type="replenishment" onclick="setProductionType(&#39;replenishment&#39;)" style="flex:1;min-width:70px;justify-content:center;padding:8px 6px;font-size:12.5px"><i class="ti ti-refresh"></i> Replenishment</button>
+      <button type="button" class="btn task-type-btn" data-type="putaway" onclick="setProductionType(&#39;putaway&#39;)" style="flex:1;min-width:70px;justify-content:center;padding:8px 6px;font-size:12.5px"><i class="ti ti-box"></i> Putaway</button>
+    </div>
+    <p id="production-type-hint" style="font-size: 12px; color: var(--text2); margin: -8px 0px 12px; display: block;"><i class="ti ti-clock"></i> Logged with today's date and time — marks this batch ready for dispatch.</p>
+    <p id="production-edit-banner" style="display:none;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;background:var(--amber-bg);color:var(--amber-text);border:0.5px solid var(--amber-border);border-radius:var(--radius);padding:8px 10px;margin-bottom:12px">
+      <span><i class="ti ti-pencil"></i> Editing an existing entry</span>
+      <button type="button" class="btn" style="padding:3px 8px;font-size:12px" onclick="cancelEditProduction()">Cancel</button>
+    </p>
+    <div id="production-assigned-orders" style="display:none;margin-bottom:14px"></div>
+    <div id="production-modal-totals" style="display:flex;gap:10px;margin-bottom:14px"><div class="stat-card" style="flex:1"><div class="stat-label">Orders packed today</div><div class="stat-value">0</div></div><div class="stat-card" style="flex:1"><div class="stat-label">SKUs packed today</div><div class="stat-value">0</div></div></div>
+    <div class="modal-form">
+      <div id="production-fields-packing-order" style="display:none">
+        <div class="form-group" id="production-pack-order-group">
+          <label class="form-label">Pick order to pack</label>
+          <input type="text" id="production-pack-order-search" placeholder="Search customer or market…" oninput="renderPackOrderList()" autocomplete="off">
+          <div id="production-pack-order-list" style="max-height:220px;overflow-y:auto;border:0.5px solid var(--border2);border-radius:var(--radius);margin-top:8px"></div>
+          <button type="button" class="btn" style="margin-top:6px;font-size:12px;padding:5px 10px" onclick="togglePackManualEntry()"><i class="ti ti-edit"></i> <span id="pack-manual-toggle-label">Can't find it? Enter customer manually</span></button>
+        </div>
+        <div class="form-group" id="production-pack-manual-wrap" style="display:none;margin-top:10px">
+          <label class="form-label">Customer name</label>
+          <input type="text" id="production-customer-input" placeholder="e.g. Shoprite Lekki" oninput="onProductionCustomerInput()">
+        </div>
+        <div id="packing-timer-row" style="display:none;margin-top:10px;align-items:center;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn primary" id="packing-start-btn" onclick="startPackingTimer()" style="padding:8px 14px"><i class="ti ti-player-play"></i> Start packing timer</button>
+          <span id="packing-timer-live" style="display:none;font-size:12.5px;color:var(--text2)">⏱ Packing: <span class="order-timer" id="packing-timer-span" data-assigned-at="">0m</span></span>
+          <button type="button" class="btn danger" id="packing-cancel-btn" onclick="cancelPackingTimer()" style="display:none;padding:6px 10px" title="Discard timer"><i class="ti ti-x"></i></button>
+        </div>
+      </div>
+      <div class="form-row" id="production-fields-orders" style="margin-bottom: 0px; margin-top:10px; display: flex;">
+        <div class="form-group" id="production-orders-field-group"><label class="form-label">Orders in this batch</label><input type="number" min="0" inputmode="numeric" id="production-orders-input" placeholder="e.g. 25"></div>
+        <div class="form-group"><label class="form-label">SKUs in this batch</label><input type="number" min="0" inputmode="numeric" id="production-skus-input" placeholder="e.g. 140"></div>
+      </div>
+      <div class="form-row" id="production-fields-packing-weight" style="margin-bottom:0;margin-top:10px;display:none">
+        <div class="form-group"><label class="form-label">Weight (kg)</label><input type="number" min="0" step="0.1" inputmode="decimal" id="production-weight-input" placeholder="e.g. 120.5"></div>
+        <div class="form-group"><label class="form-label">Cartons</label><input type="number" min="0" inputmode="numeric" id="production-cartons-input" placeholder="e.g. 15"></div>
+      </div>
+      <div class="form-row" id="production-fields-qty" style="margin-bottom:0;display:none">
+        <div class="form-group"><label class="form-label" id="production-qty-label">Units replenished</label><input type="number" min="0" inputmode="numeric" id="production-qty-input" placeholder="e.g. 200"></div>
+        <div class="form-group"><label class="form-label">Location / Bin <span style="font-weight:400">(optional)</span></label><input type="text" id="production-location-input" placeholder="e.g. Aisle 4"></div>
+      </div>
+      <div id="production-fields-putaway" style="display:none">
+        <div id="putaway-assigned-list" style="display:none;margin-bottom:12px"></div>
+        <div class="form-row" style="margin-bottom:0">
+          <div class="form-group"><label class="form-label">Supplier</label><select id="production-supplier-input"><option value="">Select supplier…</option></select></div>
+          <div class="form-group"><label class="form-label">Qty supplied</label><input type="number" min="0" inputmode="numeric" id="production-putaway-qty-input" placeholder="e.g. 200"></div>
+        </div>
+        <div id="putaway-timer-row" style="display:none;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);margin-top:10px">⏱ Working: <span class="order-timer" data-assigned-at="" id="putaway-timer-span">0m</span></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="button" class="btn primary" id="putaway-start-btn" onclick="startPutawayTask()" style="flex:1;justify-content:center;padding:9px"><i class="ti ti-player-play"></i> Start</button>
+          <button type="button" class="btn primary" id="putaway-end-btn" onclick="endPutawayTask()" style="flex:1;justify-content:center;padding:9px;display:none"><i class="ti ti-check"></i> End &amp; log</button>
+          <button type="button" class="btn danger" id="putaway-cancel-btn" onclick="cancelPutawayTask()" style="padding:9px 12px;display:none" title="Discard — nothing logged yet"><i class="ti ti-x"></i></button>
+        </div>
+      </div>
+      <button class="btn primary" id="production-submit-btn" onclick="addProductionEntry()" style="width:100%;justify-content:center;padding:10px;margin-top:6px"><i class="ti ti-plus"></i> Add entry</button>
+      <p id="production-error" style="color:var(--red-text);font-size:12px;text-align:center;display:none">Enter a valid number of orders and/or SKUs</p>
+    </div>
+    <p class="section-title" style="margin-top:14px">Today's entries</p>
+    <div id="production-entries-list" style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:6px"><div class="empty-state" style="padding:14px"><i class="ti ti-package"></i>No entries yet today — add your first batch above</div></div>
+    <button class="btn" onclick="closeProductionModal()" style="width:100%;justify-content:center;padding:10px;margin-top:12px">Done for now</button>
+  </div>
+</div>
+
+<!-- ASSIGN WORKERS MODAL — pick 1 or more workers to pick an order together -->
+<div class="modal-overlay hidden" id="assign-workers-modal">
+  <div class="modal">
+    <h2>Assign workers</h2>
+    <p id="assign-workers-order-label" style="font-size:12.5px;color:var(--text2);margin-top:-8px">&nbsp;</p>
+    <div class="search-wrap" style="margin-bottom:0"><i class="ti ti-search"></i><input type="text" id="assign-workers-search" placeholder="Search worker name…" oninput="renderAssignWorkersList()" autocomplete="off"></div>
+    <p style="font-size:11.5px;color:var(--text3);margin:8px 0 10px">Check everyone who'll pick this order together. It stays one order — it's only marked picked once everyone checked here has finished their part.</p>
+    <div id="assign-workers-list" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:6px"></div>
+    <button class="btn primary" onclick="closeAssignWorkersModal()" style="width:100%;justify-content:center;padding:10px;margin-top:14px">Done</button>
+  </div>
+</div>
+
+<!-- SHIFT BREAKDOWN MODAL -->
+<div class="modal-overlay hidden" id="shift-breakdown-modal">
+  <div class="modal" style="max-width:640px">
+    <h2 id="shift-breakdown-title">Morning shift — breakdown</h2>
+    <p id="shift-breakdown-sub" style="font-size:12.5px;color:var(--text2);margin-top:-8px">Per-worker totals for the selected date range</p>
+    <div class="log-wrap" style="margin-top:12px">
+      <table>
+        <thead><tr><th>Name</th><th style="text-align:center">Picking</th><th style="text-align:center">Packing</th><th style="text-align:center">Replenishment</th><th style="text-align:center">Putaway</th><th style="text-align:right">Total orders</th></tr></thead>
+        <tbody id="shift-breakdown-body"></tbody>
+      </table>
+    </div>
+    <button class="btn" onclick="closeShiftBreakdown()" style="width:100%;justify-content:center;padding:10px;margin-top:14px">Close</button>
+  </div>
+</div>
+
+<!-- 12PM–4PM ORDERS REPORT MODAL -->
+<div class="modal-overlay hidden" id="midday-report-modal">
+  <div class="modal" style="max-width:640px">
+    <h2>Orders 12:00 PM – 4:00 PM</h2>
+    <p id="midday-report-sub" style="font-size:12.5px;color:var(--text2);margin-top:-8px">Picking &amp; packing batches logged between 12:00 PM and 4:00 PM, for the selected analytics date range</p>
+    <div class="stat-grid" id="midday-report-stats" style="margin-top:12px"></div>
+    <div class="log-wrap" style="margin-top:12px">
+      <table>
+        <thead><tr><th>Name</th><th>Task</th><th>Time</th><th style="text-align:right">Orders</th><th style="text-align:right">SKUs</th></tr></thead>
+        <tbody id="midday-report-body"></tbody>
+      </table>
+    </div>
+    <button class="btn" onclick="closeMiddayReport()" style="width:100%;justify-content:center;padding:10px;margin-top:14px">Close</button>
+  </div>
+</div>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <img src="icons/logo.png" alt="" width="34" height="34" style="border-radius:8px;display:block">
+      <span style="font-size:22px;font-weight:900;color:var(--text);letter-spacing:-1px;font-family:Arial Black,sans-serif">F/ELD</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:center">
+      <div id="warehouse-display" style="font-size: 13px; font-weight: 700; padding: 5px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text); display: flex; align-items: center; gap: 6px;">
+        <span id="warehouse-label">🏭 LAGOS_DC</span>
+      </div>
+      <!-- Super admin only selector -->
+      <select id="warehouse-selector" onchange="switchWarehouse(this.value)" style="font-size: 13px; font-weight: 700; padding: 5px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text); outline: none; cursor: pointer; max-width: 160px; display: none;">
+        <option value="LAGOS_DC">🏭 LAGOS_DC</option>
+        <option value="NAIROBI_DC">🏭 NAIROBI_DC</option>
+      </select>
+    </div>
+    <div class="header-right">
+      <span id="sync-indicator" title="Live sync status" style="font-size: 12px; color: var(--text2); display: flex;"><span class="sync-dot" id="sync-dot"></span><span id="sync-text">Live</span></span>
+      <span class="date-badge" id="date-badge">Saturday, 1 August 2026</span>
+      <span class="worker-pill" id="worker-pill" onclick="handleWorkerPill()" style="display: none;">👤 Me ▾</span>
+      <span class="admin-pill" id="admin-pill" onclick="handleAdminPill()" style="display: none;">⬡ Super Admin ▾</span>
+      <button class="btn" onclick="showLogin()" id="login-btn" style="font-size: 13px; display: flex;"><i class="ti ti-lock"></i> Admin</button>
+    </div>
+  </div>
+</header>
+
+<div class="tabs-bar">
+  <div class="tabs-inner">
+    <button class="tab active" onclick="switchTab(&#39;checkin&#39;,this)"><i class="ti ti-user-check"></i> Check in</button>
+    <button class="tab admin-only" id="tab-approve-btn" data-perm="approve" onclick="switchTab(&#39;approve&#39;,this)"><i class="ti ti-shield-check"></i> Approvals <span id="pending-count-badge" style="background:var(--red-bg);color:var(--red-text);border-radius:20px;padding:1px 7px;font-size:11px;margin-left:2px;display:none">0</span></button>
+    <button class="tab admin-only" data-perm="scanner" onclick="switchTab(&#39;scanner&#39;,this)"><i class="ti ti-barcode"></i> Scanners <span id="scanner-overdue-badge" style="background:var(--amber-bg);color:var(--amber-text);border-radius:20px;padding:1px 7px;font-size:11px;margin-left:2px;display:none">0</span></button>
+    <button class="tab admin-only" id="tab-orders-btn" data-perm="orders" onclick="switchTab(&#39;orders&#39;,this)"><i class="ti ti-clipboard-list"></i> Orders <span id="orders-count-badge" style="background:var(--amber-bg);color:var(--amber-text);border-radius:20px;padding:1px 7px;font-size:11px;margin-left:2px;display:none">0</span></button>
+    <button class="tab admin-only" id="tab-putaway-btn" data-perm="putaway" onclick="switchTab(&#39;putaway&#39;,this)"><i class="ti ti-package-import"></i> Putaway</button>
+    <button class="tab admin-only" id="tab-analytics-btn" data-perm="analytics" onclick="switchTab(&#39;analytics&#39;,this)"><i class="ti ti-chart-bar"></i> Analytics</button>
+    <button class="tab admin-only" id="tab-outbound-btn" data-perm="outbound" onclick="switchTab(&#39;outbound&#39;,this)"><i class="ti ti-truck-delivery"></i> Outbound <span id="outbound-count-badge" style="background:var(--amber-bg);color:var(--amber-text);border-radius:20px;padding:1px 7px;font-size:11px;margin-left:2px;display:none"></span></button>
+    <button class="tab" onclick="switchTab(&#39;reports&#39;,this)"><i class="ti ti-alert-triangle"></i> Reports &amp; Batch <span id="reports-count-badge" style="background:var(--red-bg);color:var(--red-text);border-radius:20px;padding:1px 7px;font-size:11px;margin-left:2px;display:none">0</span></button>
+    <button class="tab" onclick="switchTab(&#39;messages&#39;,this)"><i class="ti ti-message-circle-2"></i> Messages <span id="messages-count-badge" style="background:var(--red-bg);color:var(--red-text);border-radius:20px;padding:1px 7px;font-size:11px;margin-left:2px;display:none">0</span></button>
+    <button class="tab admin-only" data-perm="ledger" onclick="switchTab(&#39;ledger&#39;,this)"><i class="ti ti-list-details"></i> Ledger</button>
+    <button class="tab admin-only" id="tab-payroll-btn" data-perm="hr" onclick="switchTab(&#39;payroll&#39;,this)"><i class="ti ti-cash"></i> Payroll</button>
+    <button class="tab admin-only" id="tab-sheets-btn" data-perm="sheets" onclick="switchTab(&#39;sheets&#39;,this)"><i class="ti ti-plug-connected"></i> Integrations</button>
+    <button class="tab admin-only" id="tab-manage-btn" data-perm="manage" onclick="switchTab(&#39;manage&#39;,this)"><i class="ti ti-users"></i> Workers</button>
+    <button class="tab admin-only" id="tab-audit-btn" data-perm="audit" onclick="switchTab(&#39;audit&#39;,this)"><i class="ti ti-history"></i> Audit log</button>
+    <button class="tab admin-only" id="tab-admins-btn" data-perm="admins" onclick="switchTab(&#39;admins&#39;,this)"><i class="ti ti-shield"></i> Admins</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- CHECK IN -->
+  <div id="tab-checkin" class="section active">
+    <div class="approval-banner"><i class="ti ti-clock"></i><span>Check-ins require admin approval before pay is recorded.</span></div>
+    <div class="card" id="checkin-return-card" style="margin-bottom:16px;cursor:pointer">
+      <div style="display:flex;align-items:center;justify-content:space-between" onclick="toggleCheckinReturnCard()">
+        <span style="font-size:13px;font-weight:600;color:var(--text2)"><i class="ti ti-device-ipad-horizontal-check"></i> Returning your scanner?</span>
+        <i class="ti ti-chevron-down" id="checkin-return-chevron"></i>
+      </div>
+      <div id="checkin-return-body" style="display:none;margin-top:12px;cursor:default" onclick="event.stopPropagation()">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Your name</label>
+            <select id="checkin-return-worker" onchange="toggleScannerGuestInput(&#39;checkin-return&#39;)"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Scanner to return</label>
+            <select id="checkin-return-number"></select>
+          </div>
+        </div>
+        <div class="form-row" id="checkin-return-guest-row" style="display:none">
+          <div class="form-group">
+            <label class="form-label">Full name <span style="font-weight:400;color:var(--text2)">(external / audit worker)</span></label>
+            <input type="text" id="checkin-return-guest-name" placeholder="Enter full name" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="justify-content:flex-end">
+            <label class="form-label">&nbsp;</label>
+            <button class="btn success" onclick="returnScanner(&#39;checkin-return&#39;)"><i class="ti ti-device-ipad-horizontal-check"></i> Return scanner</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="section-title">Find your name and check in</p>
+    <div class="search-wrap"><i class="ti ti-search"></i><input type="text" id="search-input" placeholder="Search worker name…" oninput="renderCheckin()" autocomplete="off"></div>
+    <div class="worker-list" id="worker-list"></div>
+  </div>
+
+  <!-- APPROVALS -->
+  <div id="tab-approve" class="section">
+    <div class="stat-grid" id="approve-stats"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div style="display:flex;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden">
+        <button class="btn" id="approve-filter-today" onclick="setApproveFilter(&#39;today&#39;)" style="border:none;border-radius:0">Today</button>
+        <button class="btn" id="approve-filter-week" onclick="setApproveFilter(&#39;week&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">This week</button>
+        <button class="btn" id="approve-filter-all" onclick="setApproveFilter(&#39;all&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">All pending</button>
+        <button class="btn" id="approve-filter-approved" onclick="setApproveFilter(&#39;approved&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">Approved (undo)</button>
+        <button class="btn" id="approve-filter-rejected" onclick="setApproveFilter(&#39;rejected&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">Rejected (restore)</button>
+      </div>
+      <button class="btn success" id="approve-all-btn" onclick="approveAll()"><i class="ti ti-checks"></i> Approve all</button>
+    </div>
+    <p class="section-title" id="approve-section-title">Pending check-ins</p>
+    <div class="worker-list" id="approve-list"></div>
+  </div>
+
+  <!-- SCANNER TAB -->
+  <div id="tab-scanner" class="section">
+    <div class="stat-grid" id="scanner-stats"></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;padding:0 4px">
+      <i class="ti ti-info-circle"></i> Workers now pick a scanner or their phone as part of checking in, and can pick up a dropped scanner later from the Check-in tab. This tab is for oversight and manual returns.
+    </div>
+    <p class="section-title">Return a scanner</p>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Your name</label>
+          <select id="scanner-return-worker" onchange="toggleScannerGuestInput(&#39;scanner-return&#39;)">
+            <option value="">— Select your name —</option>
+            <option value="__other__">➕ I'm not on the list…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Scanner to return</label>
+          <select id="scanner-return-number">
+            <option value="">— Select scanner —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row" id="scanner-return-guest-row" style="display:none">
+        <div class="form-group">
+          <label class="form-label">Full name <span style="font-weight:400;color:var(--text2)">(external / audit worker)</span></label>
+          <input type="text" id="scanner-return-guest-name" placeholder="Enter full name" autocomplete="off">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="justify-content:flex-end">
+          <label class="form-label">&nbsp;</label>
+          <button class="btn success" onclick="returnScanner(&#39;scanner-return&#39;)"><i class="ti ti-device-ipad-horizontal-check"></i> Return scanner</button>
+        </div>
+      </div>
+    </div>
+    <p class="section-title">Scanner status — today</p>
+    <div class="log-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Worker</th><th>Picked up</th><th>Returned</th><th>Status</th></tr></thead>
+        <tbody id="scanner-log-body"></tbody>
+      </table>
+    </div>
+    <div id="scanner-admin-actions" style="display:none">
+      <div class="form-row" style="margin-top:8px">
+        <div class="form-group"><label class="form-label">From</label><input type="date" id="scanner-filter-from"></div>
+        <div class="form-group"><label class="form-label">To</label><input type="date" id="scanner-filter-to"></div>
+      </div>
+      <div class="export-row" style="margin-top:0.5rem">
+        <button class="btn primary" onclick="exportScannerCSV()"><i class="ti ti-download"></i> Export scanner log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYTICS TAB -->
+  <div id="tab-analytics" class="section">
+    <p class="section-title">Date range <span style="font-weight:400;font-size:12px;color:var(--text3)">— applies to every section except Right now</span></p>
+    <div class="toolbar">
+      <div style="display:flex;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden">
+        <button class="btn" id="arange-today" onclick="setAnalyticsRange(&#39;today&#39;)" style="border:none;border-radius:0">Today</button>
+        <button class="btn" id="arange-week" onclick="setAnalyticsRange(&#39;week&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">Week</button>
+        <button class="btn" id="arange-month" onclick="setAnalyticsRange(&#39;month&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">Month</button>
+        <button class="btn" id="arange-year" onclick="setAnalyticsRange(&#39;year&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">Year</button>
+        <button class="btn" id="arange-all" onclick="setAnalyticsRange(&#39;all&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">All</button>
+      </div>
+      <div><div style="font-size:12px;color:var(--text2);margin-bottom:4px">From</div><input type="date" class="date-input" id="analytics-from" onchange="analyticsRangeType=&#39;custom&#39;;renderAnalytics()"></div>
+      <div><div style="font-size:12px;color:var(--text2);margin-bottom:4px">To</div><input type="date" class="date-input" id="analytics-to" onchange="analyticsRangeType=&#39;custom&#39;;renderAnalytics()"></div>
+    </div>
+
+    <div class="ap-tiles" id="analytics-tiles">
+      <button class="ap-tile" id="ap-tile-live" onclick="setAnalyticsPane('live')"><i class="ti ti-activity"></i><span class="ap-t">Right now</span><span class="ap-s">Today at a glance</span></button>
+      <button class="ap-tile" id="ap-tile-overview" onclick="setAnalyticsPane('overview')"><i class="ti ti-layout-dashboard"></i><span class="ap-t">Overview</span><span class="ap-s">Check-ins, orders, pay</span></button>
+      <button class="ap-tile" id="ap-tile-trend" onclick="setAnalyticsPane('trend')"><i class="ti ti-chart-line"></i><span class="ap-t">Orders trend</span><span class="ap-s">Orders over time</span></button>
+      <button class="ap-tile" id="ap-tile-prod" onclick="setAnalyticsPane('prod')"><i class="ti ti-gauge"></i><span class="ap-t">Productivity</span><span class="ap-s">Shifts, tasks, top workers</span></button>
+      <button class="ap-tile" id="ap-tile-timing" onclick="setAnalyticsPane('timing')"><i class="ti ti-hourglass"></i><span class="ap-t">Waiting times</span><span class="ap-s">Assigned → started → done</span></button>
+      <button class="ap-tile" id="ap-tile-activity" onclick="setAnalyticsPane('activity')"><i class="ti ti-user-exclamation"></i><span class="ap-t">Activity &amp; idle</span><span class="ap-s">Signed in, nothing logged</span></button>
+      <button class="ap-tile" id="ap-tile-peak" onclick="setAnalyticsPane('peak')"><i class="ti ti-clock-hour-4"></i><span class="ap-t">Peak hours</span><span class="ap-s">Busy times by hour and day</span></button>
+      <button class="ap-tile" id="ap-tile-scanners" onclick="setAnalyticsPane('scanners')"><i class="ti ti-barcode"></i><span class="ap-t">Scanners</span><span class="ap-s">Use and returns</span></button>
+      <button class="ap-tile" id="ap-tile-accuracy" onclick="setAnalyticsPane('accuracy')"><i class="ti ti-checks"></i><span class="ap-t">Accuracy</span><span class="ap-s">Picked vs packed quantity</span></button>
+      <button class="ap-tile" id="ap-tile-targets" onclick="setAnalyticsPane('targets')"><i class="ti ti-target"></i><span class="ap-t">Targets</span><span class="ap-s">Rate vs target per worker</span></button>
+      <button class="ap-tile" id="ap-tile-dispatch" onclick="setAnalyticsPane('dispatch')"><i class="ti ti-truck-delivery"></i><span class="ap-t">Dispatch</span><span class="ap-s">Regions and 3PLs</span></button>
+      <button class="ap-tile" id="ap-tile-log" onclick="setAnalyticsPane('log')"><i class="ti ti-list-details"></i><span class="ap-t">Work log</span><span class="ap-s">Who did what, how long</span></button>
+    </div>
+    <div class="ap-pane" id="ap-pane-live" style="display:none">
+    <p class="section-title ap-title">Right now</p>
+        <div class="stat-grid stat-grid-8" id="analytics-live"></div>
+
+
+    </div>
+    <div class="ap-pane" id="ap-pane-overview" style="display:none">
+    <p class="section-title ap-title">Overview</p>
+    <div class="stat-grid" id="analytics-stats"></div>
+    <div id="analytics-compare-root"></div>
+
+
+    </div>
+    <div class="ap-pane" id="ap-pane-trend" style="display:none">
+    <p class="section-title ap-title">Orders trend</p>
+    <p class="section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:0">
+      <span>Trend</span>
+      <span id="analytics-trend-badge" style="display:none;align-items:center;gap:4px;font-size:11px;font-weight:600;text-transform:none;letter-spacing:normal;padding:3px 10px;border-radius:20px;border:0.5px solid"></span>
+    </p>
+    <div class="card">
+      <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="trend-gran-day" onclick="setTrendGranularity(&#39;day&#39;)" style="font-size:12px;padding:6px 12px">Daily</button>
+        <button class="btn" id="trend-gran-week" onclick="setTrendGranularity(&#39;week&#39;)" style="font-size:12px;padding:6px 12px">Weekly</button>
+        <button class="btn" id="trend-gran-month" onclick="setTrendGranularity(&#39;month&#39;)" style="font-size:12px;padding:6px 12px">Monthly</button>
+        <button class="btn" id="trend-gran-year" onclick="setTrendGranularity(&#39;year&#39;)" style="font-size:12px;padding:6px 12px">Yearly</button>
+        <div style="flex:1"></div>
+        <span style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text2)"><span style="width:9px;height:9px;border-radius:50%;background:#6b7280;display:inline-block"></span>Orders</span>
+        <span style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text2)"><span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;display:inline-block"></span>Picked</span>
+        <span style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text2)"><span style="width:9px;height:9px;border-radius:50%;background:#22c55e;display:inline-block"></span>Packed</span>
+      </div>
+      <div id="analytics-trend-chart"></div>
+    </div>
+
+
+    </div>
+    <div class="ap-pane" id="ap-pane-prod" style="display:none">
+    <p class="section-title ap-title">Productivity</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:-4px">
+      <p class="section-title" style="font-size:12px;color:var(--text2);text-transform:none;letter-spacing:normal;margin:0">By shift <span style="font-weight:400">— click a row for a per-worker breakdown</span></p>
+      <button class="btn" style="font-size:12px" onclick="openMiddayReport()"><i class="ti ti-clock-hour-4"></i> Orders 12pm–4pm</button>
+    </div>
+    <div class="log-wrap">
+      <table>
+        <thead><tr><th>Shift</th><th style="text-align:center">Workers</th><th style="text-align:center">Approved check-ins</th><th style="text-align:right">Orders</th><th style="text-align:right">SKUs</th><th style="text-align:right">Avg orders/worker</th></tr></thead>
+        <tbody id="analytics-shift-body"></tbody>
+      </table>
+    </div>
+    <p id="shift-unspecified-note" style="font-size:11.5px;color:var(--text3);margin-top:-10px;display:none"><i class="ti ti-info-circle"></i> "Not specified" covers check-ins/production logged before shift selection was recorded (e.g. legacy data, or a shift value missing on the record).</p>
+
+    <p class="section-title" style="font-size:12px;color:var(--text2);text-transform:none;letter-spacing:normal">By task type</p>
+    <div class="log-wrap">
+      <table>
+        <thead><tr><th>Task</th><th style="text-align:center">Entries</th><th style="text-align:right">Orders</th><th style="text-align:right">SKUs / Units</th></tr></thead>
+        <tbody id="analytics-task-body"></tbody>
+      </table>
+    </div>
+
+    <p class="section-title" style="font-size:12px;color:var(--text2);text-transform:none;letter-spacing:normal">Top workers by orders processed</p>
+    <div class="log-wrap">
+      <table>
+        <thead><tr><th>Worker</th><th style="text-align:center">Entries logged</th><th style="text-align:right">Orders</th><th style="text-align:right">SKUs</th><th style="text-align:right">Avg SKUs/order</th></tr></thead>
+        <tbody id="analytics-worker-body"></tbody>
+      </table>
+    </div>
+
+
+    </div>
+    <div class="ap-pane" id="ap-pane-timing" style="display:none">
+    <p class="section-title ap-title">Waiting times <span style="font-weight:400;font-size:12px;color:var(--text3)">— picking orders, then packing, then putaway</span></p>
+    <div id="analytics-timing-root"></div>
+    <div id="analytics-wait-packing-root"></div>
+    <div id="analytics-wait-putaway-root"></div>
+    </div>
+    <div class="ap-pane" id="ap-pane-activity" style="display:none">
+    <p class="section-title ap-title">Activity &amp; idle time</p>
+    <div id="analytics-activity-root"></div>
+    </div>
+    <div class="ap-pane" id="ap-pane-peak" style="display:none">
+    <p class="section-title ap-title">Peak hours</p>
+    <div id="analytics-peak-root"></div>
+    </div>
+    <div class="ap-pane" id="ap-pane-scanners" style="display:none">
+    <p class="section-title ap-title">Scanner use</p>
+    <div id="analytics-scanners-root"></div>
+    </div>
+    <div class="ap-pane" id="ap-pane-accuracy" style="display:none">
+    <p class="section-title ap-title">Picked vs packed quantity</p>
+    <div id="analytics-accuracy-root"></div>
+    </div>
+    <div class="ap-pane" id="ap-pane-targets" style="display:none">
+    <p class="section-title ap-title">Performance vs target</p>
+    <div id="analytics-targets-root"></div>
+    </div>
+    <div class="ap-pane" id="ap-pane-dispatch" style="display:none">
+    <p class="section-title ap-title">Fulfillment &amp; dispatch</p>
+    <div class="stat-grid stat-grid-5" id="analytics-dispatch-stats"></div>
+
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px">
+      <div style="flex:1;min-width:260px">
+        <p class="section-title" style="font-size:12px;color:var(--text2);text-transform:none;letter-spacing:normal">By region / state</p>
+        <div class="log-wrap">
+          <table>
+            <thead><tr><th>Region</th><th style="text-align:center">Batches</th><th style="text-align:right">Orders</th></tr></thead>
+            <tbody id="analytics-region-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <p class="section-title" style="font-size:12px;color:var(--text2);text-transform:none;letter-spacing:normal">By 3PL</p>
+        <div class="log-wrap">
+          <table>
+            <thead><tr><th>3PL</th><th style="text-align:center">Batches</th><th style="text-align:right">Orders</th></tr></thead>
+            <tbody id="analytics-3pl-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+
+    </div>
+    <div class="ap-pane" id="ap-pane-log" style="display:none">
+    <p class="section-title ap-title">Worker productivity log</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <p class="section-title" style="font-size:12px;color:var(--text2);text-transform:none;letter-spacing:normal;margin:0">Worker productivity <span style="font-weight:400">— what each worker did, and how long it took</span></p>
+      <button class="btn" style="font-size:12px" onclick="togglePackingLog()"><i class="ti ti-list-details"></i> <span id="packing-log-toggle-label">Show packing log</span></button>
+    </div>
+    <div class="log-wrap">
+      <table>
+        <thead><tr><th>Worker</th><th>Date</th><th>Time</th><th>Task</th><th style="text-align:right">Orders / Qty</th><th style="text-align:right">SKUs</th><th style="text-align:right">Time taken</th></tr></thead>
+        <tbody id="analytics-productivity-body"></tbody>
+      </table>
+    </div>
+    <p style="font-size:11.5px;color:var(--text3);margin-top:-10px"><i class="ti ti-info-circle"></i> "Time taken" is the gap since that worker's previous logged action that day (or since check-in, for their first task) — an estimate, not a stopwatch.</p>
+
+    <div id="analytics-packing-log-wrap" style="display:none">
+      <p class="section-title" style="font-size:12px;color:var(--text2);text-transform:none;letter-spacing:normal;margin-top:20px">Packing log — batch detail</p>
+      <div class="log-wrap">
+        <table>
+          <thead><tr><th>Worker</th><th>Customer</th><th>Date</th><th>Time</th><th style="text-align:right">Orders</th><th style="text-align:right">SKUs</th><th style="text-align:right">Weight</th><th style="text-align:right">Cartons</th><th>3PL</th><th>Region</th><th>Status</th></tr></thead>
+          <tbody id="analytics-packing-log-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+
+    </div>
+    <div class="export-row">
+      <button class="btn primary" onclick="downloadAnalyticsExcel()"><i class="ti ti-file-spreadsheet"></i> Download analytics (Excel)</button>
+    </div>
+  </div>
+
+  <!-- OUTBOUND TAB -->
+  <div id="tab-putaway" class="section">
+    <div id="putaway-admin-root"></div>
+  </div>
+
+  <div id="tab-orders" class="section">
+    <p class="section-title">Assign new order</p>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group" style="position:relative">
+          <label class="form-label">Customer name</label>
+          <input type="text" id="order-customer-input" placeholder="Search or type a customer…" autocomplete="off" oninput="onOrderCustomerInput()" onfocus="onOrderCustomerInput()" onblur="onOrderCustomerBlur()">
+          <div id="order-customer-suggestions" class="customer-suggestions hidden"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Market / Region</label><input type="text" id="order-market-input" placeholder="e.g. Lagos Island"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="justify-content:flex-end"><label class="form-label">&nbsp;</label><button class="btn primary" onclick="addOrderRow()"><i class="ti ti-plus"></i> Add to list</button></div>
+      </div>
+    </div>
+    <p class="section-title">Today's orders</p>
+    <div class="log-wrap" style="margin-top:12px">
+      <table>
+        <thead><tr><th>Customer</th><th>Market</th><th>Assign to</th><th>Status</th><th style="text-align:right">Time on task</th><th style="text-align:right">Qty picked</th><th></th></tr></thead>
+        <tbody id="orders-body"></tbody>
+      </table>
+    </div>
+
+    <p class="section-title" style="margin-top:24px;display:flex;align-items:center;gap:6px">Ready to pack <span id="ready-to-pack-count-badge" style="background:var(--green-bg);color:var(--green-text);border-radius:20px;padding:1px 7px;font-size:11px;display:none">0</span></p>
+    <p style="font-size:12.5px;color:var(--text2);margin-top:-8px">Picked orders waiting to be packed — any date, oldest first, so nothing sits waiting longer than it should.</p>
+    <div class="log-wrap" style="margin-top:8px">
+      <table>
+        <thead><tr><th>Customer</th><th>Market</th><th>Picked by</th><th style="text-align:right">Qty picked</th><th style="text-align:right">Waiting</th><th></th></tr></thead>
+        <tbody id="ready-to-pack-body"></tbody>
+      </table>
+    </div>
+
+    <p class="section-title" style="margin-top:24px;display:flex;align-items:center;gap:6px">Pending orders <span id="pending-orders-count-badge" style="background:var(--amber-bg);color:var(--amber-text);border-radius:20px;padding:1px 7px;font-size:11px;display:none">0</span></p>
+    <p style="font-size:12.5px;color:var(--text2);margin-top:-8px">Every order that hasn't been picked yet — unassigned or still in progress, any date, oldest first. (Picked orders waiting to be packed show in "Ready to pack" above instead.)</p>
+    <div class="log-wrap" style="margin-top:8px">
+      <table>
+        <thead><tr><th>Customer</th><th>Market</th><th>Date added</th><th>Assign to</th><th>Status</th><th></th></tr></thead>
+        <tbody id="pending-orders-body"></tbody>
+      </table>
+    </div>
+
+    <p class="section-title" style="margin-top:24px">Fulfillment report — all in one sheet</p>
+    <div class="card">
+      <p style="font-size:12.5px;color:var(--text2);margin:0 0 10px">Customer, market region, who picked it, who packed it, 3PL and pickup — one row per order, for any date range.</p>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">From</label><input type="date" id="fulfillment-from"></div>
+        <div class="form-group"><label class="form-label">To</label><input type="date" id="fulfillment-to"></div>
+      </div>
+      <button class="btn success" onclick="downloadFulfillmentReport()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-file-spreadsheet"></i> Download fulfillment report (Excel)</button>
+    </div>
+  </div>
+
+  <div id="tab-outbound" class="section">
+    <p class="section-title" id="outbound-section-title">Packed orders — dispatch tracking</p>
+    <div class="toolbar" style="margin-bottom:10px">
+      <div style="display:flex;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden">
+        <button class="btn" id="outbound-view-packing" onclick="setOutboundView(&#39;packing&#39;)" style="border:none;border-radius:0"><i class="ti ti-package"></i> Packed</button>
+        <button class="btn" id="outbound-view-picking" onclick="setOutboundView(&#39;picking&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)"><i class="ti ti-list-check"></i> Picked</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <input type="text" class="date-input" id="outbound-search" placeholder="Search customer or worker…" oninput="renderOutbound()" style="flex:1;min-width:160px">
+      <input type="date" class="date-input" id="outbound-date-filter" onchange="renderOutbound()" style="min-width:150px" title="From">
+      <span style="align-self:center;color:var(--text3);font-size:12px">to</span>
+      <input type="date" class="date-input" id="outbound-date-filter-to" onchange="renderOutbound()" style="min-width:150px" title="To">
+      <button class="btn" onclick="clearOutboundDateFilter()" style="font-size:12px">All dates</button>
+      <div id="outbound-status-filters" style="display:flex;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden">
+        <button class="btn" id="outbound-filter-pending" onclick="setOutboundFilter(&#39;pending&#39;)" style="border:none;border-radius:0">Pending pickup</button>
+        <button class="btn" id="outbound-filter-dispatched" onclick="setOutboundFilter(&#39;dispatched&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">Dispatched</button>
+        <button class="btn" id="outbound-filter-all" onclick="setOutboundFilter(&#39;all&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">All</button>
+      </div>
+    </div>
+    <div class="stat-grid" id="outbound-stats" style="margin-top:12px"></div>
+    <div class="log-wrap" style="margin-top:12px">
+      <table>
+        <thead id="outbound-thead"><tr><th>Customer</th><th>Packed by</th><th>Packed at</th><th style="text-align:right">Orders</th><th style="text-align:right">SKUs</th><th style="text-align:right">Weight</th><th style="text-align:right">Cartons</th><th>3PL</th><th>Region</th><th>Picked up</th><th></th></tr></thead>
+        <tbody id="outbound-body"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px"><button class="btn success" onclick="downloadOutboundExcel()"><i class="ti ti-file-spreadsheet"></i> Download Excel (picked &amp; packed)</button></div>
+  </div>
+
+
+  <!-- REPORTS & BATCH/EXPIRY TAB (merged) -->
+  <div id="tab-reports" class="section">
+    <div class="card" style="display:flex;gap:8px;padding:6px">
+      <button class="btn" id="reports-subtab-issues-btn" onclick="setReportsSubTab(&#39;issues&#39;)" style="flex:1;justify-content:center;padding:10px"><i class="ti ti-alert-triangle"></i> Issues &amp; Complaints <span id="reports-subtab-issues-badge" style="background: var(--red-bg); color: var(--red-text); border-radius: 20px; padding: 1px 7px; font-size: 11px; margin-left: 4px; display: inline;">8</span></button>
+      <button class="btn" id="reports-subtab-batch-btn" onclick="setReportsSubTab(&#39;batch&#39;)" style="flex:1;justify-content:center;padding:10px"><i class="ti ti-barcode"></i> Batch / Expiry <span id="reports-subtab-batch-badge" style="background:var(--amber-bg);color:var(--amber-text);border-radius:20px;padding:1px 7px;font-size:11px;margin-left:4px;display:none">0</span></button>
+    </div>
+    <div id="reports-subtab-issues-content">
+    <!-- WORKER VIEW: Submit a report -->
+    <div id="reports-worker-view">
+      <p class="section-title">Submit an issue or complaint</p>
+      <div class="card">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Your name</label>
+            <select id="report-worker-name">
+              <option value="">— Select your name —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Issue category</label>
+            <select id="report-category">
+              <option value="">— Select category —</option>
+              <option value="scanner">🔫 Scanner Issue / Damage</option>
+              <option value="shipsy">💻 Shipsy WMS Issue</option>
+              <option value="general">📋 General Warehouse Complaint</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">Scanner number (if applicable)</label>
+          <select id="report-scanner-num">
+            <option value="">— Not applicable —</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">Describe the issue</label>
+          <textarea id="report-description" rows="4" style="padding:10px 12px;font-size:14px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;resize:vertical;width:100%" placeholder="Please describe the issue in as much detail as possible..."></textarea>
+        </div>
+        <button class="btn primary" onclick="submitReport()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-send"></i> Submit report</button>
+      </div>
+      <div class="card" style="background:var(--amber-bg);border-color:var(--amber-border)">
+        <p style="font-size:13px;color:var(--amber-text)"><strong>Note:</strong> Reports are reviewed by the Warehouse IT Analyst and management. Your report is private — only admins can see it.</p>
+      </div>
+      <p class="section-title">Your submitted reports</p>
+      <div class="card">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Your name</label>
+          <select id="my-reports-name-select" onchange="renderMyReports()">
+            <option value="">— Select your name to view your reports —</option>
+          </select>
+        </div>
+      </div>
+      <div class="worker-list" id="my-reports-list"></div>
+    </div>
+    <!-- ADMIN VIEW: See all reports -->
+    <div id="reports-admin-view" style="display:none">
+      <div class="stat-grid" id="reports-stats"></div>
+      <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap">
+        <button class="btn" id="rfilter-all" onclick="setReportFilter(&#39;all&#39;)" style="font-size:13px">All</button>
+        <button class="btn" id="rfilter-scanner" onclick="setReportFilter(&#39;scanner&#39;)" style="font-size:13px">🔫 Scanner</button>
+        <button class="btn" id="rfilter-shipsy" onclick="setReportFilter(&#39;shipsy&#39;)" style="font-size:13px">💻 Shipsy</button>
+        <button class="btn" id="rfilter-general" onclick="setReportFilter(&#39;general&#39;)" style="font-size:13px">📋 General</button>
+        <button class="btn" id="rfilter-open" onclick="setReportFilter(&#39;open&#39;)" style="font-size:13px">🔴 Open</button>
+        <button class="btn" id="rfilter-resolved" onclick="setReportFilter(&#39;resolved&#39;)" style="font-size:13px">✅ Resolved</button>
+      </div>
+      <div class="worker-list" id="reports-admin-list"></div>
+    </div>
+    </div>
+    <!-- BATCH / EXPIRY sub-tab content (moved here from the old standalone Batch/Expiry tab) -->
+    <div id="reports-subtab-batch-content" style="display:none">
+    <!-- WORKER VIEW -->
+    <div id="batch-worker-view">
+      <div class="card" style="display:flex;gap:8px;padding:6px">
+        <button class="btn" id="batch-type-batch-btn" onclick="setBatchFormType(&#39;batch&#39;)" style="flex:1;justify-content:center;padding:10px"><i class="ti ti-package"></i> New Batch Seen</button>
+        <button class="btn" id="batch-type-expiry-btn" onclick="setBatchFormType(&#39;expiry&#39;)" style="flex:1;justify-content:center;padding:10px"><i class="ti ti-calendar-exclamation"></i> Wrong Expiry Date</button>
+      </div>
+
+      <!-- NEW BATCH FORM -->
+      <div id="batch-form-batch">
+        <p class="section-title">Report a new batch</p>
+        <div class="card">
+          <div class="form-group">
+            <label class="form-label">Your name</label>
+            <select id="batch-worker-name">
+              <option value="">— Select your name —</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">SKU code</label>
+              <input type="text" id="batch-sku" placeholder="e.g. SKU-10432" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">New batch</label>
+              <input type="text" id="batch-new-batch" placeholder="e.g. B240715" autocomplete="off">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Expiry date</label>
+              <input type="date" id="batch-expiry-date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Location</label>
+              <input type="text" id="batch-location" placeholder="e.g. Aisle 4, Bin 12" autocomplete="off">
+            </div>
+          </div>
+          <button class="btn primary" onclick="submitBatchReport()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-send"></i> Submit batch report</button>
+          <p id="batch-report-error" style="color:var(--red-text);font-size:12px;text-align:center;display:none;margin-top:8px">Please fill in all fields</p>
+        </div>
+      </div>
+
+      <!-- EXPIRY CORRECTION FORM -->
+      <div id="batch-form-expiry" style="display:none">
+        <p class="section-title">Report a wrong expiry date</p>
+        <div class="card">
+          <div class="form-group">
+            <label class="form-label">Your name</label>
+            <select id="expiry-worker-name">
+              <option value="">— Select your name —</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">SKU code</label>
+              <input type="text" id="expiry-sku" placeholder="e.g. SKU-10432" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Batch</label>
+              <input type="text" id="expiry-batch" placeholder="e.g. B240715" autocomplete="off">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Old date on system</label>
+              <input type="date" id="expiry-old-date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Correct date</label>
+              <input type="date" id="expiry-correct-date">
+            </div>
+          </div>
+          <button class="btn primary" onclick="submitExpiryReport()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-send"></i> Submit correction</button>
+          <p id="expiry-report-error" style="color:var(--red-text);font-size:12px;text-align:center;display:none;margin-top:8px">Please fill in all fields</p>
+        </div>
+      </div>
+
+      <p class="section-title">Recently reported</p>
+      <div class="worker-list" id="batch-recent-list"></div>
+    </div>
+
+    <!-- ADMIN VIEW -->
+    <div id="batch-admin-view" style="display:none">
+      <div class="card" style="display:flex;gap:8px;padding:6px">
+        <button class="btn" id="batch-admin-tab-batch-btn" onclick="setBatchAdminTab(&#39;batch&#39;)" style="flex:1;justify-content:center;padding:10px"><i class="ti ti-package"></i> New Batches</button>
+        <button class="btn" id="batch-admin-tab-expiry-btn" onclick="setBatchAdminTab(&#39;expiry&#39;)" style="flex:1;justify-content:center;padding:10px"><i class="ti ti-calendar-exclamation"></i> Expiry Corrections</button>
+      </div>
+
+      <!-- NEW BATCHES ADMIN PANEL -->
+      <div id="batch-admin-panel-batch">
+        <div class="stat-grid" id="batch-stats"></div>
+        <div class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn" id="bfilter-all" onclick="setBatchFilter(&#39;all&#39;)" style="font-size:12px">All</button>
+          <button class="btn" id="bfilter-pending" onclick="setBatchFilter(&#39;pending&#39;)" style="font-size:12px">Pending</button>
+          <button class="btn" id="bfilter-uploaded" onclick="setBatchFilter(&#39;uploaded&#39;)" style="font-size:12px">Uploaded</button>
+          <input type="date" id="batch-filter-from" title="From date" style="font-size:16px;padding:6px 8px">
+          <input type="date" id="batch-filter-to" title="To date" style="font-size:16px;padding:6px 8px">
+          <div style="flex:1"></div>
+          <button class="btn success" onclick="downloadBatchExcel()" style="font-size:12px"><i class="ti ti-file-spreadsheet"></i> Download Excel</button>
+          <button class="btn" onclick="markAllBatchUploaded()" style="font-size:12px"><i class="ti ti-checks"></i> Mark all pending as uploaded</button>
+        </div>
+        <div class="worker-list" id="batch-admin-list"></div>
+      </div>
+
+      <!-- EXPIRY CORRECTIONS ADMIN PANEL -->
+      <div id="batch-admin-panel-expiry" style="display:none">
+        <div class="stat-grid" id="expiry-stats"></div>
+        <div class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn" id="efilter-all" onclick="setExpiryFilter(&#39;all&#39;)" style="font-size:12px">All</button>
+          <button class="btn" id="efilter-pending" onclick="setExpiryFilter(&#39;pending&#39;)" style="font-size:12px">Pending</button>
+          <button class="btn" id="efilter-uploaded" onclick="setExpiryFilter(&#39;uploaded&#39;)" style="font-size:12px">Uploaded</button>
+          <input type="date" id="expiry-filter-from" title="From date" style="font-size:16px;padding:6px 8px">
+          <input type="date" id="expiry-filter-to" title="To date" style="font-size:16px;padding:6px 8px">
+          <div style="flex:1"></div>
+          <button class="btn success" onclick="downloadExpiryExcel()" style="font-size:12px"><i class="ti ti-file-spreadsheet"></i> Download Excel</button>
+          <button class="btn" onclick="markAllExpiryUploaded()" style="font-size:12px"><i class="ti ti-checks"></i> Mark all pending as uploaded</button>
+        </div>
+        <div class="worker-list" id="expiry-admin-list"></div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- MESSAGES TAB -->
+  <div id="tab-messages" class="section">
+    <!-- WORKER VIEW -->
+    <div id="messages-worker-view">
+      <p class="section-title">Messages from admin</p>
+      <div class="card">
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">Your name</label>
+          <select id="msg-worker-name-select" onchange="renderMessages()">
+            <option value="">— Select your name —</option>
+          </select>
+        </div>
+        <button class="btn" id="worker-notif-btn" onclick="requestNotificationPermission()" style="width:100%;justify-content:center"><i class="ti ti-bell"></i> Enable notifications</button>
+      </div>
+      <div id="msg-worker-thread-wrap" style="display:none">
+        <div class="card" id="msg-worker-thread" style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto"></div>
+        <div class="card" style="margin-top:10px">
+          <div class="form-group" style="margin-bottom:10px">
+            <textarea id="msg-worker-text" rows="2" style="padding:10px 12px;font-size:14px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;resize:vertical;width:100%" placeholder="Type a message to admin…"></textarea>
+          </div>
+          <button class="btn primary" onclick="sendWorkerMessage()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-send"></i> Send message</button>
+        </div>
+      </div>
+      <div class="empty-state" id="msg-worker-empty"><i class="ti ti-message-2"></i>Select your name to see your messages</div>
+    </div>
+    <!-- ADMIN VIEW -->
+    <div id="messages-admin-view" style="display:none">
+      <p class="section-title">Message a worker</p>
+      <div class="card">
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">Pick a worker</label>
+          <select id="msg-admin-worker-select" onchange="renderMessages()">
+            <option value="">— Select a worker —</option>
+          </select>
+        </div>
+        <button class="btn" id="admin-notif-btn" onclick="requestNotificationPermission()" style="width:100%;justify-content:center"><i class="ti ti-bell"></i> Enable notifications</button>
+      </div>
+      <div id="msg-admin-thread-wrap" style="display:none">
+        <div class="card" id="msg-admin-thread" style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto"></div>
+        <div class="card" style="margin-top:10px">
+          <div class="form-group" style="margin-bottom:10px">
+            <textarea id="msg-admin-text" rows="2" style="padding:10px 12px;font-size:14px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;resize:vertical;width:100%" placeholder="Type a message…"></textarea>
+          </div>
+          <button class="btn primary" onclick="sendAdminMessage()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-send"></i> Send message</button>
+        </div>
+      </div>
+      <div class="empty-state" id="msg-admin-empty"><i class="ti ti-message-2"></i>Pick a worker above to start or continue a conversation</div>
+    </div>
+  </div>
+
+  <!-- LEDGER -->
+  <div id="tab-ledger" class="section">
+    <div class="stat-grid" id="ledger-stats"></div>
+    <p class="section-title">Attendance &amp; pay log</p>
+    <div class="toolbar">
+      <div><div style="font-size:12px;color:var(--text2);margin-bottom:4px">From</div><input type="date" class="date-input" id="filter-from" onchange="renderLedger()"></div>
+      <div><div style="font-size:12px;color:var(--text2);margin-bottom:4px">To</div><input type="date" class="date-input" id="filter-to" onchange="renderLedger()"></div>
+      <div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">View</div>
+        <div style="display:flex;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden">
+          <button class="btn" id="view-summary-btn" onclick="setLedgerView(&#39;summary&#39;)" style="border:none;border-radius:0">Summary</button>
+          <button class="btn" id="view-daily-btn" onclick="setLedgerView(&#39;daily&#39;)" style="border:none;border-radius:0;border-left:0.5px solid var(--border2)">Daily log</button>
+        </div>
+      </div>
+    </div>
+    <div class="log-wrap"><table><thead id="ledger-head"></thead><tbody id="ledger-body"></tbody></table></div>
+    <div class="export-row">
+      <button class="btn primary" onclick="exportCSV()"><i class="ti ti-download"></i> Download CSV</button>
+    </div>
+  </div>
+
+  <div id="tab-payroll" class="section">
+    <div id="payroll-root"></div>
+  </div>
+
+  <div id="tab-audit" class="section">
+    <div id="audit-root"></div>
+  </div>
+
+  <!-- SHEETS -->
+  <div id="tab-sheets" class="section">
+    <p class="section-title">Google Sheets connection</p>
+    <div class="card">
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Apps Script Web App URL</label>
+        <input type="text" id="script-url" placeholder="Paste your Google Apps Script URL here…" oninput="saveScriptUrl()">
+        <span style="font-size:12px;color:var(--text2);margin-top:4px">See setup instructions below</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn" onclick="testConnection()"><i class="ti ti-plug"></i> Test connection</button>
+        <span id="conn-status" style="font-size:13px;color:var(--text2)"></span>
+      </div>
+    </div>
+    <p class="section-title">Sync settings</p>
+    <div class="card">
+      <div class="toggle-row"><div><div class="toggle-label">Auto-sync every Sunday</div><div class="toggle-sub">Automatically uploads the week's approved check-ins every Sunday</div></div><div class="toggle" id="auto-sync-toggle" onclick="toggleAutoSync()"></div></div>
+      <div class="toggle-row"><div><div class="toggle-label">Manual sync only</div><div class="toggle-sub">Use the button below to push data whenever you choose</div></div><div class="toggle on" id="manual-toggle" onclick="toggleManual()"></div></div>
+    </div>
+    <p class="section-title">Quick Report bubble</p>
+    <div class="card">
+      <div class="toggle-row"><div><div class="toggle-label">Show floating bubble</div><div class="toggle-sub">A small draggable button workers can use to quickly report a batch or expiry date from any screen, on this device</div></div><div class="toggle on" id="bubble-toggle" onclick="toggleQuickReportBubble()"></div></div>
+    </div>
+    <p class="section-title">Manual sync</p>
+    <div class="card">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Push this week's approved check-ins to Google Sheets now.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn primary" onclick="syncNow(&#39;week&#39;)"><i class="ti ti-upload"></i> Sync this week</button>
+        <button class="btn" onclick="syncNow(&#39;all&#39;)"><i class="ti ti-database-export"></i> Sync all records</button>
+      </div>
+      <p id="last-sync" style="font-size:12px;color:var(--text2);margin-top:10px"></p>
+    </div>
+    <p class="section-title">Setup instructions</p>
+    <div class="card">
+      <ol style="font-size:13px;color:var(--text2);line-height:2;padding-left:1.2rem">
+        <li>Open your <strong style="color:var(--text)">Google Sheet</strong></li>
+        <li>Click <strong style="color:var(--text)">Extensions → Apps Script</strong></li>
+        <li>Delete any existing code, paste the script below</li>
+        <li>Click <strong style="color:var(--text)">Deploy → New deployment → Web app</strong></li>
+        <li>Set <em>Execute as</em>: <strong style="color:var(--text)">Me</strong> and <em>Who has access</em>: <strong style="color:var(--text)">Anyone</strong></li>
+        <li>Copy the <strong style="color:var(--text)">Web app URL</strong> and paste it above</li>
+      </ol>
+      <div style="margin-top:14px"><button class="btn success" onclick="downloadScript()"><i class="ti ti-download"></i> Download Apps Script</button></div>
+    </div>
+
+    <p class="section-title">Slack — daily outbound summary</p>
+    <div class="card">
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Slack Incoming Webhook URL</label>
+        <input type="text" id="slack-webhook-url" placeholder="https://hooks.slack.com/services/…" oninput="saveSlackWebhook()">
+        <span style="font-size:12px;color:var(--text2);margin-top:4px">See setup instructions below</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="btn" onclick="testSlackWebhook()"><i class="ti ti-plug"></i> Send test message</button>
+        <button class="btn" onclick="sendSlackPackingSummaryNow()"><i class="ti ti-send"></i> Send today's summary now</button>
+      </div>
+      <p id="slack-last-sent" style="font-size:12px;color:var(--text2);margin-top:10px">Last sent to Slack: 01/08/2026, 23:14:47</p>
+    </div>
+    <div class="card">
+      <div class="toggle-row"><div><div class="toggle-label">Auto-send every day at 12:00 AM</div><div class="toggle-sub">Posts the previous day's outbound summary (orders, SKUs, customers that were moved to dispatch — pending batches are left out) to Slack — requires this app to be open in a browser tab at midnight. For guaranteed delivery even when nobody has the app open, use the Cloud Function below instead.</div></div><div class="toggle" id="slack-auto-toggle" onclick="toggleSlackAutoSend()"></div></div>
+    </div>
+    <p class="section-title">Guaranteed midnight delivery (optional — needs Firebase's paid Blaze plan; skip this on the free plan)</p>
+    <div class="card">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">The toggle above only fires if someone's browser has this app open at midnight. For a summary that sends every single night — even if the app is closed — deploy this as a Firebase Cloud Function instead. It runs on Firebase's servers on a fixed schedule.</p>
+      <ol style="font-size:13px;color:var(--text2);line-height:2;padding-left:1.2rem">
+        <li>Download the function file below</li>
+        <li>Paste your Slack webhook URL and warehouse name(s) into it where marked</li>
+        <li>In your Firebase project folder, run <strong style="color:var(--text)">firebase init functions</strong> (Node 18+), then replace <code>index.js</code> with the downloaded file</li>
+        <li>Run <strong style="color:var(--text)">firebase deploy --only functions</strong></li>
+        <li>It will run automatically every day at 12:00 AM (adjust the time zone in the file if needed)</li>
+      </ol>
+      <div style="margin-top:14px"><button class="btn success" onclick="downloadSlackFunction()"><i class="ti ti-download"></i> Download Cloud Function</button></div>
+    </div>
+  </div>
+
+  <!-- WORKERS -->
+  <div id="tab-manage" class="section">
+    <p class="section-title">Add new worker</p>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Full name</label><input type="text" id="new-name" placeholder="e.g. Chioma Okafor"></div>
+        <div class="form-group"><label class="form-label">Grade</label><select id="new-type"><option value="senior">Senior — ₦9,000/day</option><option value="probation">Probation — ₦6,500/day</option></select></div>
+        <div class="form-group"><label class="form-label">Home warehouse</label><select id="new-warehouse" onchange="updateGradeOptions(&#39;new-type&#39;,&#39;new-warehouse&#39;)"><option value="LAGOS_DC">🏭 LAGOS_DC</option><option value="NAIROBI_DC">🏭 NAIROBI_DC</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Start date</label><input type="date" id="new-start"></div>
+        <div class="form-group"><label class="form-label">Google e-mail <span style="font-weight:400">(for sign-in — type it exactly as on their Google account)</span></label><input type="email" id="new-email" placeholder="name@gmail.com" autocomplete="off"></div>
+        <div class="form-group" style="justify-content:flex-end"><label class="form-label">&nbsp;</label><button class="btn primary" onclick="addWorker()"><i class="ti ti-plus"></i> Add worker</button></div>
+      </div>
+    </div>
+    <p class="section-title">Worker sign-in e-mails</p>
+    <div class="card">
+      <p id="worker-email-summary" style="font-size:13px;color:var(--text2);margin:0 0 8px"></p>
+      <p style="font-size:12.5px;color:var(--text2);margin:0 0 8px">Paste one worker per line — name and e-mail, separated by a comma or tab. Each e-mail is attached to the <strong>existing</strong> worker with that name, so their history stays with them. Nothing is saved until you review the matches.</p>
+      <textarea id="bulk-email-text" rows="5" style="width:100%;padding:10px 12px;font-size:13px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none" placeholder="Ada Obi, ada.obi@gmail.com&#10;Bayo Smith, bayo@gmail.com"></textarea>
+      <button class="btn" style="margin-top:8px" onclick="bulkEmailPreview()"><i class="ti ti-list-search"></i> Match names</button>
+      <div id="bulk-email-preview" style="margin-top:10px"></div>
+    </div>
+    <p class="section-title">All workers</p>
+    <div class="worker-list" id="manage-list"></div>
+  </div>
+
+  <!-- ADMINS -->
+  <div id="tab-admins" class="section">
+    <p class="section-title">Add admin</p>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Username</label><input type="text" id="admin-username" placeholder="e.g. hr_manager" autocomplete="off"></div>
+        <div class="form-group"><label class="form-label">Password</label><input type="password" id="admin-password" placeholder="Choose a password"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Role / Name</label><input type="text" id="admin-role" placeholder="e.g. HR Manager"></div>
+      </div>
+      <label class="form-label" style="margin-top:4px">Tab access <span style="font-weight:400">(leave all unchecked to grant full access)</span></label>
+      <div id="admin-permission-checkboxes" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
+      <button class="btn primary" onclick="addAdmin()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-plus"></i> Add admin</button>
+    </div>
+    <p class="section-title">Change my password</p>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Select admin</label><select id="change-pw-admin"></select></div>
+        <div class="form-group"><label class="form-label">New password</label><input type="password" id="change-pw-new" placeholder="Enter new password"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Confirm password</label><input type="password" id="change-pw-confirm" placeholder="Re-enter new password"></div>
+        <div class="form-group" style="justify-content:flex-end"><label class="form-label">&nbsp;</label><button class="btn primary" onclick="changePassword()"><i class="ti ti-key"></i> Change password</button></div>
+      </div>
+    </div>
+    <p class="section-title">Current admins</p>
+    <div class="worker-list" id="admin-list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- FLOATING QUICK REPORT BUBBLE -->
+<div id="quick-report-bubble" style="display: none; left: 1364px; top: 574px;">
+  <button id="qr-bubble-close" title="Hide bubble"><i class="ti ti-x"></i></button>
+  <div id="qr-bubble-handle"><i class="ti ti-barcode"></i></div>
+</div>
+
+<div id="qr-panel-overlay" class="hidden" onclick="if(event.target===this)closeQrPanel()">
+  <div id="qr-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <strong style="font-size:15px">Quick Report</strong>
+      <button class="btn" onclick="closeQrPanel()" style="padding:6px 10px"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="btn" id="qr-type-batch-btn" onclick="setQrType(&#39;batch&#39;)" style="flex:1;justify-content:center;padding:8px;font-size:12px"><i class="ti ti-package"></i> New Batch</button>
+      <button class="btn" id="qr-type-expiry-btn" onclick="setQrType(&#39;expiry&#39;)" style="flex:1;justify-content:center;padding:8px;font-size:12px"><i class="ti ti-calendar-exclamation"></i> Wrong Expiry</button>
+    </div>
+
+    <div id="qr-form-batch">
+      <select id="qr-worker-name" style="margin-bottom:8px;padding:9px 10px;font-size:13px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;width:100%">
+        <option value="">— Your name —</option>
+      </select>
+      <input type="text" id="qr-sku" placeholder="SKU code" style="margin-bottom:8px" autocomplete="off">
+      <input type="text" id="qr-new-batch" placeholder="New batch" style="margin-bottom:8px" autocomplete="off">
+      <input type="date" id="qr-expiry-date" style="margin-bottom:8px">
+      <input type="text" id="qr-location" placeholder="Location (e.g. Aisle 4, Bin 12)" style="margin-bottom:10px" autocomplete="off">
+      <button class="btn primary" onclick="qrSubmitBatch()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-send"></i> Submit</button>
+    </div>
+
+    <div id="qr-form-expiry" style="display:none">
+      <select id="qr-expiry-worker-name" style="margin-bottom:8px;padding:9px 10px;font-size:13px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;width:100%">
+        <option value="">— Your name —</option>
+      </select>
+      <input type="text" id="qr-e-sku" placeholder="SKU code" style="margin-bottom:8px" autocomplete="off">
+      <input type="text" id="qr-e-batch" placeholder="Batch" style="margin-bottom:8px" autocomplete="off">
+      <label style="font-size:11px;color:var(--text2)">Old date on system</label>
+      <input type="date" id="qr-old-date" style="margin-bottom:8px">
+      <label style="font-size:11px;color:var(--text2)">Correct date</label>
+      <input type="date" id="qr-correct-date" style="margin-bottom:10px">
+      <button class="btn primary" onclick="qrSubmitExpiry()" style="width:100%;justify-content:center;padding:10px"><i class="ti ti-send"></i> Submit</button>
+    </div>
+    <p id="qr-confirm" style="text-align:center;font-size:12px;color:var(--green-text);display:none;margin-top:8px">✓ Added — keep going, or close when done</p>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script src="worker-auth.js"></script>
+<script src="app.js"></script>
+<script src="features.js"></script>
+<script src="payroll.js"></script>
+<script src="audit.js"></script>
+<script src="push.js"></script>
+<script src="worker-emails.js"></script>
+<script src="analytics-extra.js"></script>
+
+
+</body></html>
