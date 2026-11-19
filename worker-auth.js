@@ -14,7 +14,7 @@ function gateShow(state, msg, email) {
   const g = gateEl('worker-gate'); if (!g) return;
   g.classList.remove('hidden');
   gateEl('wg-busy').style.display = state === 'busy' ? 'flex' : 'none';
-  gateEl('wg-signin').style.display = state === 'signin' ? 'block' : 'none'; if (state === 'signin') gateWebviewHint();
+  gateEl('wg-signin').style.display = state === 'signin' ? 'block' : 'none'; if (state === 'signin') { gateWebviewHint(); gateBuildLine(); }
   gateEl('wg-problem').style.display = state === 'problem' ? 'block' : 'none';
   gateEl('wg-busy-msg').textContent = msg || 'Signing you in…';
   gateEl('wg-problem-msg').textContent = msg || '';
@@ -29,6 +29,19 @@ function gateWebviewHint() {
   const d = document.createElement('div'); d.id = 'wg-webview-hint'; d.style.cssText = 'margin-top:12px;font-size:12.5px;color:var(--amber-text,#b45309)';
   d.textContent = 'This looks like a scanner / in-app browser. Google blocks sign-in there. Open this same web address in Chrome (or use a phone or laptop browser) to sign in.';
   box.appendChild(d);
+}
+// Shows which build this phone is really running, with a one-tap "force update" that clears the saved copy.
+const APP_BUILD = 'v12 · 19 Nov 2026';
+async function forceFreshApp() {
+  try { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); } catch (e) { }
+  try { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } catch (e) { }
+  location.reload();
+}
+function gateBuildLine() {
+  const box = gateEl('wg-signin'); if (!box || gateEl('wg-build')) return;
+  const d = document.createElement('div'); d.id = 'wg-build'; d.style.cssText = 'margin-top:14px;font-size:11.5px;color:var(--text-3,#888)';
+  d.innerHTML = 'App version ' + APP_BUILD + ' · <a href="#" id="wg-force" style="color:inherit;text-decoration:underline">Not the latest? Force update</a>';
+  box.appendChild(d); const a = gateEl('wg-force'); if (a) a.onclick = function (ev) { ev.preventDefault(); forceFreshApp(); };
 }
 function gateHide() { const g = gateEl('worker-gate'); if (g) g.classList.add('hidden'); }
 
