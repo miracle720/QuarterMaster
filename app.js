@@ -31,7 +31,7 @@ const SETTINGS_KEY='wh_settings_v2';
 const ADMIN_EMAIL_DOMAIN='wms-admin.invalid';
 const FUNCTIONS_REGION='us-central1';   // only used if you ever add Cloud Functions; the free-plan build needs none
 function usernameToEmail(username){
-  const local=String(username==null?'':username).trim().toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9._+-]/g,'');
+  const local=String(username==null?'':username).trim().toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9._+-]/g,'').replace(/\.{2,}/g,'.').replace(/^\.+|\.+$/g,'');
   if(!local||local.length>64) return null;
   return local+'@'+ADMIN_EMAIL_DOMAIN;
 }
